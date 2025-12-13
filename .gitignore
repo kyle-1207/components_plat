@@ -1,0 +1,87 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+backend/logs/
+
+# Build outputs
+dist/
+build/
+backend/dist/
+frontend/dist/
+backend/dist-scripts/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database and data files
+*.sqlite
+*.db
+backend/data/
+
+# 大文件和数据目录（不提交到 Git）
+产品数据/
+doeeet.tar.gz
+data/dist_example*/
+data/doeeet/
+*.pdf
+*.tar.gz
+*.zip
+*.xlsx
+*.xls
+*.csv
+
+# Backend uploads and config
+backend/uploads/
+backend/config/database.js
+backend/config/mongodb.js
+backend/*.js
+backend/*.conf
+backend/scripts/*.py
+backend/scripts/*test*.js
+backend/scripts/*Test*.js
+backend/scripts/*import*.js
+backend/scripts/*Import*.js
+backend/scripts/run*.js
+backend/scripts/fast*.js
+backend/scripts/high*.js
+backend/scripts/ultra*.js
+
+# Frontend build cache
+frontend/.vite/
+
+# Test files
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Records and backups
+records/
+backups/
+cursor记录/
+
+# Digital models
+数字模型库/
+

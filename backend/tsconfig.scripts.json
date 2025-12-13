@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist-scripts",
+    "rootDir": ".",
+    "noEmit": false
+  },
+  "include": [
+    "scripts/importPremiumProducts.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-scripts"
+  ]
+}
+
+
