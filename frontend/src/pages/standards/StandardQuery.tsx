@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Card,
   Form,
@@ -25,6 +25,7 @@ import {
   BookOutlined,
   GlobalOutlined,
 } from '@ant-design/icons';
+import httpClient from '@/utils/httpClient';
 
 const { Option } = Select;
 const { Text, Title } = Typography;
@@ -52,7 +53,16 @@ interface Standard {
   }>;
   downloadUrl?: string;
   viewCount: number;
+  category?: string[];
 }
+
+const formatDate = (value?: string) => {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  // 仅展示年月日
+  return d.toISOString().slice(0, 10);
+};
 
 const StandardQuery: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -60,84 +70,92 @@ const StandardQuery: React.FC = () => {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedStandard, setSelectedStandard] = useState<Standard | null>(null);
   const [form] = Form.useForm();
+  const [milCategories, setMilCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
 
-  // 模拟数据
-  const mockStandards: Standard[] = [
-    {
-      id: '1',
-      standardCode: 'MIL-STD-883K',
-      standardType: 'MIL',
-      title: '微电子器件试验方法和程序',
-      version: 'K',
-      status: '现行',
-      publishDate: '2019-06-28',
-      effectiveDate: '2019-09-28',
-      organization: 'US Department of Defense',
-      scope: '微电子器件',
-      description: '本标准规定了微电子器件的试验方法和程序，包括环境试验、电性能试验、机械试验等。',
-      relatedStandards: ['MIL-STD-750', 'MIL-STD-202'],
-      historyVersions: [
-        { version: 'J', date: '2014-05-02', changes: '更新试验方法，增加新的测试程序' },
-        { version: 'K', date: '2019-06-28', changes: '修订环境试验条件，更新质量保证要求' },
-      ],
-      downloadUrl: '/standards/MIL-STD-883K.pdf',
-      viewCount: 15420,
-    },
-    {
-      id: '2',
-      standardCode: 'ESCC-9000',
-      standardType: 'ESCC',
-      title: '欧洲航天元器件协调标准',
-      version: '2020',
-      status: '现行',
-      publishDate: '2020-03-15',
-      effectiveDate: '2020-06-15',
-      organization: 'European Space Agency',
-      scope: '航天元器件',
-      description: '欧洲航天局制定的航天用电子元器件质量保证和可靠性标准。',
-      relatedStandards: ['ESCC-2000', 'ESCC-3000'],
-      historyVersions: [
-        { version: '2018', date: '2018-01-10', changes: '初版发布' },
-        { version: '2020', date: '2020-03-15', changes: '增加新器件类型，更新试验要求' },
-      ],
-      downloadUrl: '/standards/ESCC-9000-2020.pdf',
-      viewCount: 8760,
-    },
-    {
-      id: '3',
-      standardCode: 'GJB-548C',
-      standardType: 'GJB',
-      title: '微电子器件试验方法和程序',
-      version: 'C',
-      status: '现行',
-      publishDate: '2018-12-01',
-      effectiveDate: '2019-06-01',
-      organization: '国防科工局',
-      scope: '微电子器件',
-      description: '国军标微电子器件试验方法和程序，参考MIL-STD-883标准制定。',
-      relatedStandards: ['GJB-128A', 'GJB-360B'],
-      historyVersions: [
-        { version: 'A', date: '1996-03-01', changes: '初版发布' },
-        { version: 'B', date: '2005-08-15', changes: '增加新的试验方法' },
-        { version: 'C', date: '2018-12-01', changes: '全面修订，与国际标准接轨' },
-      ],
-      downloadUrl: '/standards/GJB-548C.pdf',
-      viewCount: 12340,
-    },
-  ];
+  const handleSearch = async (
+    page = pagination.current,
+    pageSize = pagination.pageSize,
+    categoryOverride?: string,
+  ) => {
+    try {
+      setLoading(true);
+      const values = form.getFieldsValue();
+      const effectiveCategory = categoryOverride ?? selectedCategory;
+      const usp = new URLSearchParams();
+      usp.set('standardType', 'MIL');
+      usp.set('page', String(page));
+      usp.set('limit', String(pageSize));
+      if (values.keyword) usp.set('keyword', values.keyword);
+      if (values.standardCode) usp.set('standardCode', values.standardCode);
+      if (values.status) usp.set('status', values.status);
+      if (values.year) usp.set('year', values.year);
+      if (effectiveCategory) usp.set('category', effectiveCategory);
 
-  const handleSearch = async () => {
-    setLoading(true);
-    // 模拟API调用
-    setTimeout(() => {
-      setStandards(mockStandards);
+      const url = `/api/standards/search?${usp.toString()}`;
+
+      // 调试：打印请求参数
+      // eslint-disable-next-line no-console
+      console.log('[StandardQuery] handleSearch url:', url);
+
+      const dataBlock = await httpClient.get<any>(url);
+      // 兼容多层 data 包装（httpClient 已返回 data 字段，这里再兜底一次）
+      const items =
+        dataBlock?.items ??
+        dataBlock?.standards ??
+        [];
+      const pag = dataBlock?.pagination ?? {};
+      const current =
+        pag.page ??
+        pag.current ??
+        pag.pageIndex ??
+        pagination.current ??
+        page;
+      const derivedPageSize =
+        pag.limit ??
+        pag.pageSize ??
+        pag.size ??
+        pagination.pageSize ??
+        pageSize;
+      const total =
+        pag.total ??
+        pag.count ??
+        pag.totalItems ??
+        pag.totalCount ??
+        items.length;
+
+      // 调试：打印返回分页信息
+      // eslint-disable-next-line no-console
+      console.log(
+        '[StandardQuery] handleSearch result:',
+        {
+          effectiveCategory,
+          page: current,
+          pageSize: derivedPageSize,
+          total,
+          itemsLength: items.length,
+        },
+      );
+
+      setStandards(items);
+      setPagination({
+        current,
+        pageSize: derivedPageSize,
+        total,
+      });
+    } catch (error) {
+      console.error('标准搜索失败', error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const handleReset = () => {
     form.resetFields();
     setStandards([]);
+    setSelectedCategory(undefined);
+    setPagination({ current: 1, pageSize: 10, total: 0 });
   };
 
   const showDetail = (standard: Standard) => {
@@ -155,42 +173,29 @@ const StandardQuery: React.FC = () => {
       title: '标准编号',
       dataIndex: 'standardCode',
       key: 'standardCode',
-      width: 150,
+      width: 200,
+      ellipsis: false,
       render: (text: string, record: Standard) => (
-        <Button type="link" onClick={() => showDetail(record)}>
+        <Button
+          type="link"
+          style={{ padding: 0, whiteSpace: 'normal', textAlign: 'left' }}
+          onClick={() => showDetail(record)}
+        >
           {text}
         </Button>
       ),
     },
     {
-      title: '标准类型',
-      dataIndex: 'standardType',
-      key: 'standardType',
-      width: 100,
-      render: (type: string) => {
-        const colorMap: { [key: string]: string } = {
-          'MIL': 'red',
-          'ESCC': 'blue',
-          'ISO': 'green',
-          'IEC': 'orange',
-          'GJB': 'purple',
-          'GB': 'cyan',
-        };
-        return <Tag color={colorMap[type] || 'default'}>{type}</Tag>;
-      },
-    },
-    {
-      title: '标题',
+      title: '标准名称',
       dataIndex: 'title',
       key: 'title',
-      width: 300,
+      width: 320,
       ellipsis: true,
-    },
-    {
-      title: '版本',
-      dataIndex: 'version',
-      key: 'version',
-      width: 80,
+      render: (text: string) => (
+        <span style={{ whiteSpace: 'normal' }}>
+          {text}
+        </span>
+      ),
     },
     {
       title: '状态',
@@ -207,19 +212,22 @@ const StandardQuery: React.FC = () => {
       dataIndex: 'publishDate',
       key: 'publishDate',
       width: 120,
+      render: (val: string) => formatDate(val),
     },
     {
       title: '生效日期',
       dataIndex: 'effectiveDate',
       key: 'effectiveDate',
       width: 120,
+      render: (val: string) => formatDate(val),
     },
     {
       title: '查看次数',
       dataIndex: 'viewCount',
       key: 'viewCount',
       width: 100,
-      render: (count: number) => count.toLocaleString(),
+      render: (count: number | undefined) =>
+        typeof count === 'number' ? count.toLocaleString() : count ?? '-',
     },
     {
       title: '操作',
@@ -246,48 +254,56 @@ const StandardQuery: React.FC = () => {
     },
   ];
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const resp = await httpClient.get<any>('/api/standards/categories', { params: { standardType: 'MIL' } });
+        const list = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
+        setMilCategories(list);
+      } catch (err) {
+        console.error('获取标准类别失败', err);
+      }
+    })();
+  }, []);
+
   // 标准分类树
-  const standardTreeData = [
-    {
-      title: '美军标准 (MIL)',
-      key: 'mil',
-      icon: <GlobalOutlined />,
-      children: [
-        { title: 'MIL-STD-883 (微电子器件)', key: 'mil-883' },
-        { title: 'MIL-STD-750 (半导体器件)', key: 'mil-750' },
-        { title: 'MIL-STD-202 (电子器件)', key: 'mil-202' },
-      ],
-    },
-    {
-      title: '欧洲标准 (ESCC)',
-      key: 'escc',
-      icon: <GlobalOutlined />,
-      children: [
-        { title: 'ESCC-9000 (基础标准)', key: 'escc-9000' },
-        { title: 'ESCC-2000 (元器件)', key: 'escc-2000' },
-        { title: 'ESCC-3000 (试验方法)', key: 'escc-3000' },
-      ],
-    },
-    {
-      title: '国际标准 (ISO/IEC)',
-      key: 'iso',
-      icon: <GlobalOutlined />,
-      children: [
-        { title: 'ISO-9000 (质量管理)', key: 'iso-9000' },
-        { title: 'IEC-60749 (半导体器件)', key: 'iec-60749' },
-      ],
-    },
-    {
-      title: '国军标 (GJB)',
-      key: 'gjb',
-      icon: <GlobalOutlined />,
-      children: [
-        { title: 'GJB-548 (微电子器件)', key: 'gjb-548' },
-        { title: 'GJB-128 (半导体器件)', key: 'gjb-128' },
-        { title: 'GJB-360 (电子器件)', key: 'gjb-360' },
-      ],
-    },
-  ];
+  const standardTreeData = useMemo(() => {
+    const milChildren = milCategories.map((c) => ({
+      title: c,
+      key: c,
+      selectable: true,
+    }));
+    return [
+      {
+        title: '美军标准 (MIL)',
+        key: 'MIL',
+        icon: <GlobalOutlined />,
+        selectable: false,
+        children: milChildren,
+      },
+      {
+        title: '欧洲标准 (ESCC)',
+        key: 'ESCC',
+        icon: <GlobalOutlined />,
+        selectable: false,
+        disabled: true,
+      },
+      {
+        title: '国际标准 (ISO/IEC)',
+        key: 'ISO/IEC',
+        icon: <GlobalOutlined />,
+        selectable: false,
+        disabled: true,
+      },
+      {
+        title: '国军标 (GJB)',
+        key: 'GJB',
+        icon: <GlobalOutlined />,
+        selectable: false,
+        disabled: true,
+      },
+    ];
+  }, [milCategories]);
 
   return (
     <div>
@@ -299,7 +315,14 @@ const StandardQuery: React.FC = () => {
               treeData={standardTreeData}
               defaultExpandAll
               onSelect={(selectedKeys) => {
-                console.log('选择标准分类:', selectedKeys);
+                const key = selectedKeys[0] as string | undefined;
+                if (!key) return;
+                const cat = String(key);
+                // 调试：打印树选择
+                // eslint-disable-next-line no-console
+                console.log('[StandardQuery] Tree select:', cat);
+                setSelectedCategory(cat);
+                handleSearch(1, pagination.pageSize, cat);
               }}
             />
           </Card>
@@ -318,24 +341,19 @@ const StandardQuery: React.FC = () => {
                   </Form.Item>
                 </Col>
                 <Col span={8}>
-                  <Form.Item label="标准类型" name="standardType">
-                    <Select placeholder="选择标准类型" allowClear>
+                  <Form.Item label="标准类型" name="standardType" initialValue="MIL">
+                    <Select disabled>
                       <Option value="MIL">美军标准 (MIL)</Option>
-                      <Option value="ESCC">欧洲标准 (ESCC)</Option>
-                      <Option value="ISO">国际标准 (ISO)</Option>
-                      <Option value="IEC">国际标准 (IEC)</Option>
-                      <Option value="GJB">国军标 (GJB)</Option>
-                      <Option value="GB">国标 (GB)</Option>
                     </Select>
                   </Form.Item>
                 </Col>
                 <Col span={8}>
                   <Form.Item label="状态" name="status">
                     <Select placeholder="选择状态" allowClear>
-                      <Option value="现行">现行</Option>
-                      <Option value="即将生效">即将生效</Option>
-                      <Option value="废止">废止</Option>
-                      <Option value="替代">已替代</Option>
+                      <Option value="active">现行</Option>
+                      <Option value="withdrawn">废止</Option>
+                      <Option value="superseded">被替代</Option>
+                      <Option value="draft">草案</Option>
                     </Select>
                   </Form.Item>
                 </Col>
@@ -343,28 +361,18 @@ const StandardQuery: React.FC = () => {
               
               <Row gutter={16}>
                 <Col span={12}>
-                  <Form.Item label="标题关键词" name="title">
-                    <Input placeholder="输入标题关键词" />
+                  <Form.Item label="标准名称关键词" name="keyword">
+                    <Input placeholder="输入标准名称关键词" />
                   </Form.Item>
                 </Col>
                 <Col span={6}>
-                  <Form.Item label="发布年份" name="publishYear">
+                  <Form.Item label="发布年份" name="year">
                     <Select placeholder="选择年份" allowClear>
                       <Option value="2023">2023</Option>
                       <Option value="2022">2022</Option>
                       <Option value="2021">2021</Option>
                       <Option value="2020">2020</Option>
                       <Option value="2019">2019</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={6}>
-                  <Form.Item label="适用范围" name="scope">
-                    <Select placeholder="选择范围" allowClear>
-                      <Option value="微电子器件">微电子器件</Option>
-                      <Option value="半导体器件">半导体器件</Option>
-                      <Option value="航天元器件">航天元器件</Option>
-                      <Option value="无源器件">无源器件</Option>
                     </Select>
                   </Form.Item>
                 </Col>
@@ -382,16 +390,20 @@ const StandardQuery: React.FC = () => {
           </Card>
 
           {standards.length > 0 && (
-            <Card title={`搜索结果 (${standards.length})`} style={{ marginTop: 16 }}>
+            <Card title={`搜索结果 (${pagination.total || standards.length})`} style={{ marginTop: 16 }}>
               <Table
                 columns={columns}
                 dataSource={standards}
-                rowKey="id"
+                rowKey={(record: any) => record.id || record._id || record.standardCode}
                 loading={loading}
-                scroll={{ x: 1200 }}
+                scroll={{ x: 900 }}
                 pagination={{
+                  current: pagination.current,
+                  pageSize: pagination.pageSize,
+                  total: pagination.total,
                   showSizeChanger: true,
                   showQuickJumper: true,
+                  onChange: (page, pageSize) => handleSearch(page, pageSize),
                   showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
                 }}
               />

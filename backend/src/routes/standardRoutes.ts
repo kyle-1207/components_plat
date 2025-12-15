@@ -6,7 +6,9 @@ import {
   updateStandard,
   deleteStandard,
   compareStandards,
-  getStandardStatistics
+  getStandardStatistics,
+  searchStandardsText,
+  getStandardCategories
 } from '../controllers/standardController';
 import { asyncHandler } from '../middleware/errorHandler';
 
@@ -32,6 +34,16 @@ router.get('/', asyncHandler(getStandards));
  * @access  Public
  */
 router.get('/statistics', asyncHandler(getStandardStatistics));
+
+/**
+ * 文本搜索（支持分类、年份、状态等）
+ */
+router.get('/search', asyncHandler(searchStandardsText));
+
+/**
+ * 获取标准类别（category）
+ */
+router.get('/categories', asyncHandler(getStandardCategories));
 
 /**
  * @route   POST /api/standards/compare

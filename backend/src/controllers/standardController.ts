@@ -224,6 +224,114 @@ export const deleteStandard = async (req: Request, res: Response) => {
 };
 
 /**
+ * 文本搜索标准（默认 MIL，使用 $text 匹配标题/编号）
+ * GET /api/standards/search
+ */
+export const searchStandardsText = async (req: Request, res: Response) => {
+  try {
+    const {
+      keyword,
+      standardCode,
+      standardType = 'MIL',
+      status,
+      category,
+      year,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const query: any = {};
+
+    if (standardType) {
+      query.standardType = String(standardType);
+    }
+    if (status) {
+      query.status = String(status);
+    }
+    if (category) {
+      const cat = String(category).trim();
+      // category 在库中是数组，如 ["MIL-STD"] / ["MIL-PRF"] 等
+      // 这里按精确值过滤
+      query.category = { $in: [cat] };
+    }
+    if (year) {
+      const y = Number(year);
+      if (!isNaN(y)) {
+        const start = new Date(`${y}-01-01T00:00:00.000Z`);
+        const end = new Date(`${y + 1}-01-01T00:00:00.000Z`);
+        query.publishDate = { $gte: start, $lt: end };
+      }
+    }
+    if (standardCode) {
+      query.standardCode = { $regex: String(standardCode), $options: 'i' };
+    }
+    if (keyword) {
+      query.$text = { $search: String(keyword) };
+    }
+
+    const pageNum = Number(page) > 0 ? Number(page) : 1;
+    const pageSize = Math.min(Number(limit) || 20, 100);
+    const skip = (pageNum - 1) * pageSize;
+
+    const [items, total] = await Promise.all([
+      Standard.find(query)
+        .sort({ publishDate: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+      Standard.countDocuments(query),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize);
+
+    res.json({
+      success: true,
+      data: {
+        items,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: pageSize,
+          totalPages,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('标准文本搜索失败:', error);
+    res.status(500).json({
+      success: true,
+      data: {
+        items: [],
+        pagination: { total: 0, page: 1, limit: 20, totalPages: 0 },
+      },
+      message: '标准文本搜索失败',
+    });
+  }
+};
+
+/**
+ * 获取标准类别（category 字段）列表，可按标准类型过滤
+ * GET /api/standards/categories
+ */
+export const getStandardCategories = async (req: Request, res: Response) => {
+  try {
+    const { standardType = 'MIL' } = req.query;
+    const pipeline: any[] = [
+      { $match: { standardType: String(standardType) } },
+      { $unwind: '$category' },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ];
+    const result = await Standard.aggregate(pipeline);
+    const categories = result.map((r) => r._id).filter(Boolean);
+    res.json({ success: true, data: categories });
+  } catch (error) {
+    logger.error('获取标准类别失败:', error);
+    res.status(500).json({ success: false, message: '获取标准类别失败' });
+  }
+};
+
+/**
  * 标准对比分析
  * POST /api/standards/compare
  */
