@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Tabs, Cascader, Space, Typography, Tag, List, Divider, message } from 'antd';
+import { Card, Tabs, Space, Typography, Tag, List, message } from 'antd';
 import { FolderOutlined, AppstoreOutlined } from '@ant-design/icons';
 import httpClient from '@/utils/httpClient';
 
@@ -30,7 +30,7 @@ interface CategoryFilterProps {
   selectedCategory?: string[];
   /**
    * 锁定顶层分类：
-   * - 设置后，"快速选择"和"浏览所有分类"都仅显示该顶层分类及其子类
+   * - 设置后，“浏览所有分类”只显示该顶层分类及其子类
    * - 用于在进入具体器件分类页面时只聚焦该大类，提升检索效率
    */
   lockTopCategory?: string;
@@ -43,10 +43,7 @@ interface CategoryNode {
 }
 
 /**
- * 分类筛选组件
- * 支持两种交互方式：
- * 1. 级联选择器（快速筛选）
- * 2. Tab + 侧边栏浏览（完整导航）
+ * 分类筛选组件：保留 Tab + 侧边栏浏览（完整导航）
  */
 const CategoryFilter: React.FC<CategoryFilterProps> = ({ 
   onCategoryChange, 
@@ -105,66 +102,6 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
       setSubCategories({});
     } finally {
       setLoading(false);
-    }
-  };
-
-  /**
-   * 获取级联选择器使用的选项树
-   * 当锁定顶层分类时，只返回该顶层分类的子分类树（不包含顶层分类本身）
-   */
-  const getCascaderOptions = (): CategoryNode[] => {
-    if (!lockTopCategory) {
-      return categoryTree;
-    }
-    
-    // 找到锁定的顶层分类节点
-    const topCategoryNode = categoryTree.find((n: CategoryNode) => n.value === lockTopCategory);
-    if (!topCategoryNode || !topCategoryNode.children) {
-      return [];
-    }
-    
-    // 只返回子分类树，不包含顶层分类本身
-    return topCategoryNode.children;
-  };
-
-  /**
-   * 将 selectedCategory（数据库格式：叶子->父级）转换为 Cascader 需要的格式（父级->叶子）
-   */
-  const getCascaderValue = (): string[] | undefined => {
-    if (!selectedCategory || selectedCategory.length === 0) {
-      return undefined;
-    }
-    
-    // 数据库格式是从叶子到父级，需要反转为父级到叶子
-    const reversed = [...selectedCategory].reverse();
-    
-    // 如果锁定了顶层分类，需要移除顶层分类（因为 Cascader 不显示它）
-    if (lockTopCategory && reversed[0] === lockTopCategory) {
-      return reversed.slice(1);
-    }
-    
-    return reversed;
-  };
-
-  /**
-   * 处理级联选择器变化
-   */
-  const handleCascaderChange = (value: any[]) => {
-    if (value && value.length > 0) {
-      // 注意：数据库中的 family_path 是从具体到一般的顺序
-      // Cascader返回的是从父到子的顺序，需要反转
-      let reversedPath = [...value].reverse();
-      
-      // 如果锁定了顶层分类，需要在路径前加上顶层分类名
-      // 因为级联选择器只显示子分类，不包含顶层分类本身
-      if (lockTopCategory) {
-        reversedPath = [lockTopCategory, ...reversedPath];
-      }
-      
-      onCategoryChange(reversedPath);
-    } else {
-      // 清空选择
-      onCategoryChange([]);
     }
   };
 
@@ -249,30 +186,10 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
       }
       loading={loading}
     >
-      {/* 快速筛选 - 级联选择器 */}
-      <div style={{ marginBottom: '24px' }}>
-        <Text strong style={{ marginRight: '8px' }}>
-          {lockTopCategory ? `快速选择（仅 ${lockTopCategory}）` : '快速选择：'}
-        </Text>
-        <Cascader
-          options={getCascaderOptions()}
-          value={getCascaderValue()}
-          onChange={handleCascaderChange}
-          placeholder="选择分类路径"
-          style={{ width: '100%', maxWidth: '500px' }}
-          showSearch
-          changeOnSelect
-          displayRender={(labels) => labels.join(' > ')}
-          allowClear
-        />
-      </div>
-
-      <Divider />
-
-      {/* 完整分类浏览 - Tab + 侧边栏 */}
+      {/* 分类浏览 - Tab + 侧边栏 */}
       <div>
         <Text strong style={{ marginBottom: '12px', display: 'block' }}>
-          {lockTopCategory ? `浏览 ${lockTopCategory} 子类：` : '或浏览所有分类：'}
+          {lockTopCategory ? `浏览 ${lockTopCategory} 子类：` : '浏览所有分类：'}
         </Text>
         
         <Tabs

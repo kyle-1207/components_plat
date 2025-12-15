@@ -660,6 +660,19 @@ const CacheTTL = {
 
 ---
 
+## 国产元器件搜索板块方案（新增）
+
+- **数据源**：`domestic_products`（已从 `E:\产品数据\商业航天数据\商业航天产品数据信息表.xlsx` 导入）；分类树来自 `classification.json`（level1/level2/level3）。
+- **后端接口**（新增 `/api/domestic/*`）  
+  - `GET /api/domestic/search`：支持 keyword/型号(model)/厂商(manufacturer)/分类(level1/2/3)/分页；按需求扩展状态、航天供货、主推等过滤。  
+  - `GET /api/domestic/categories/tree`：基于 `classification.json` 生成树，供国产分类筛选使用。
+- **前端改造**  
+  - 首页全局搜索：增加源切换单选/Tab（默认“进口元器件”，可切换“国产元器件”），提交时带 `source=import|domestic`。  
+  - 按类别浏览：并排两块卡片墙——“进口元器件”（现有15类）与“国产元器件”（使用 `classification.json` 的一级分类去重）；点击国产卡片跳转 `/components/search?source=domestic&category=<level1>`。  
+  - 搜索页：读取 `source` 决定使用哪套 API 与分类树；`import` 走 DoEEEt 现有逻辑，`domestic` 走国产接口与国产树。国产首版表格列：型号(model)、厂商、分类（level1/2/3）、质量等级、航天供货、是否主推、联系人、关键性能、温度范围、抗辐照、封装等（可按后端返回字段裁剪/排序）。
+- **路由与状态**：统一用 query param `source`，分类点击与搜索提交均保留该参数；分类筛选组件保持“浏览子类”模式（已移除快速选择）。
+- **默认行为**：首页默认“进口元器件”；国产与进口互不影响既有 DoEEEt 流程。
+
 ## 本次对齐实施计划（2025-11-10）
 
 ### 阶段 0（契约与正确性）

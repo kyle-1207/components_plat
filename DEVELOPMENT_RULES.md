@@ -436,6 +436,7 @@ API Gateway (Kong/Nginx) + Service Mesh (Istio)
 - **质量预测**: 利用机器学习预测器件质量风险
 - **异常检测**: 自动识别异常的器件参数和质量问题
 - **知识图谱**: 构建器件关系知识图谱，支持关联分析
+- **Temporary Python scripts**: After using temporary .py helper scripts, remind the user to delete the file.
 
 ## 6. 合规性要求
 - **标准遵循**: 严格遵循航天行业标准和规范
