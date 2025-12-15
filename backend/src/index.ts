@@ -35,6 +35,7 @@ import doeeetRoutes from './routes/doeeetRoutes';
 
 // 辐照数据路由
 import radiationDataRoutes from './routes/radiationDataRoutes';
+import domesticRoutes from './routes/domesticRoutes';
 import { AlertMonitoringJob } from './jobs/AlertMonitoringJob';
 
 // 加载环境变量
@@ -76,6 +77,7 @@ app.use('/api/quality-analytics', qualityAnalyticsRoutes);
 
 // DoEEEt搜索服务路由
 app.use('/api/doeeet', doeeetRoutes);
+app.use('/api/domestic', domesticRoutes);
 
 // 辐照数据服务路由
 app.use('/api/radiation-data', radiationDataRoutes);

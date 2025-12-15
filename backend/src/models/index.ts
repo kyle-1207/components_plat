@@ -12,6 +12,7 @@ export { User } from './User';
 export { QualityAlert } from './QualityAlert';
 export { AlertRule } from './AlertRule';
 export { PremiumProduct } from './PremiumProduct';
+export { DomesticProduct } from './DomesticProduct';
 
 // 导出枚举类型
 
@@ -29,4 +30,5 @@ export type { IUser } from './User';
 export type { IQualityAlert } from './QualityAlert';
 export type { IAlertRule } from './AlertRule';
 export type { IPremiumProduct } from './PremiumProduct';
+export type { IDomesticProduct } from './DomesticProduct';
 

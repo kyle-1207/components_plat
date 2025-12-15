@@ -6,6 +6,7 @@ export { qualityAlertService, QualityAlertService } from './QualityAlertService'
 export { alertRuleEngine } from './AlertRuleEngine';
 export { alertContextBuilder } from './AlertContextBuilder';
 export { premiumProductService, PremiumProductService } from './PremiumProductService';
+export { domesticProductService, DomesticProductService } from './DomesticProductService';
 
 export type {
   ComponentSearchParams,
