@@ -362,28 +362,28 @@ Business_plat/
 
 ### 1. 启动 MongoDB 数据库
 
-**Windows 系统**:
-```bash
-cd backend
-.\start-mongodb-local.bat
+**Windows 手动启动（推荐）**  
+直接使用项目提供的配置文件，数据目录指向 `backend/data`：
+```powershell
+# 若 mongod 已加入 PATH
+mongod --config "F:\Business_plat\backend\mongod_fast.conf"
+
+# 如果未在 PATH，请用 MongoDB 安装路径替换（示例）
+"C:\Program Files\MongoDB\Server\8.0\bin\mongod.exe" --config "F:\Business_plat\backend\mongod_fast.conf"
 ```
 
 **说明**:
-- 脚本会自动检查 MongoDB 是否已安装
-- 如果检测到 Windows 服务 `MongoDB` 正在运行，会尝试自动停止（默认服务数据目录: `E:\data\db`，项目数据目录: `F:\Business_plat\backend\data`）
-- 停止 Windows 服务需要以管理员身份运行终端；若停止失败请手动执行 `net stop MongoDB`
-- 自动停止服务并释放端口后再启动本地实例，避免读写到错误的数据目录
-- 脚本会自动创建数据目录和日志目录（如果不存在）
-- 数据目录: `backend/data`
-- 日志文件: `backend/logs/mongod.log`
-- 配置文件: `backend/mongod.conf`
+- 配置文件：`backend/mongod_fast.conf`
+- 数据目录：`backend/data`
+- 日志文件：`backend/logs/mongod.log`
+- 绑定端口：27017
+- 如端口被占用，请先停止本机 MongoDB 服务：`net stop MongoDB`
 
 **启动步骤**:
 1. 打开 PowerShell 或命令提示符
-2. 切换到 `backend` 目录: `cd backend`
-3. 运行启动脚本: `.\start-mongodb-local.bat`
-4. 脚本会自动检查环境并启动 MongoDB
-5. 如果 MongoDB 已安装，会看到 "✅ MongoDB 启动成功！" 提示
+2. 切换到仓库根目录（或确保路径正确）
+3. 执行上述 `mongod --config ...` 命令保持前台运行
+4. 启动完成后再访问前端/后端接口
 
 **验证 MongoDB 是否运行**:
 ```bash

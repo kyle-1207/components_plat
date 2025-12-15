@@ -81,7 +81,10 @@ const categoryToFamilyPathMap: Record<string, string[]> = {
  * @param categoryName 分类名称（中文或英文）
  * @returns familyPath 数组，如果找不到则返回空数组
  */
-const getFamilyPathFromCategory = (categoryName: string): string[] => {
+  const getFamilyPathFromCategory = (categoryName: string): string[] => {
+    if (isDomestic) {
+      return categoryName ? [categoryName] : [];
+    }
   if (!categoryName) return [];
   // 直接查找映射
   if (categoryToFamilyPathMap[categoryName]) {
@@ -264,6 +267,8 @@ const ComponentSearch: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const source = (searchParams.get('source') as 'import' | 'domestic') || 'import';
+  const isDomestic = source === 'domestic';
   const [components, setComponents] = useState<ComponentWithUI[]>([]);
   const [selectedComponents, setSelectedComponents] = useState<string[]>([]);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -455,13 +460,74 @@ const ComponentSearch: React.FC = () => {
       params.append('page', pageToUse.toString());
       params.append('limit', pageSize.toString());
       
-      // 调用DoEEEt API
-      const finalUrl = `/api/doeeet/search?${params.toString()}`;
+      let finalUrl = `/api/doeeet/search?${params.toString()}`;
+
+      // 国产数据走国产接口，字段映射简化
+      if (isDomestic) {
+        // 将分类转换为 level1/level2/level3（selectedCategory 为叶子->父级）
+        const level1 = familyPathToUse[familyPathToUse.length - 1];
+        const level2 = familyPathToUse.length > 1 ? familyPathToUse[familyPathToUse.length - 2] : undefined;
+        const level3 = familyPathToUse.length > 2 ? familyPathToUse[0] : familyPathToUse[0] || undefined;
+        params.delete('familyPath');
+        if (level1) params.append('level1', level1);
+        if (level2) params.append('level2', level2);
+        if (level3) params.append('level3', level3);
+        if (formValues.partNumber) {
+          params.set('model', formValues.partNumber);
+          params.set('keyword', formValues.partNumber);
+        }
+        finalUrl = `/api/domestic/search?${params.toString()}`;
+      }
+
       console.log('搜索请求URL:', finalUrl);
       const data = await httpClient.get<any>(finalUrl, { timeoutMs: 60000, retries: 1, retryDelayMs: 800, signal: controller.signal });
       console.log('搜索响应结果(data):', data);
       
       if (data) {
+        // 国产结果映射
+        if (isDomestic) {
+          const rawList = Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.data)
+              ? data.data
+              : Array.isArray(data?.data?.items)
+                ? data.data.items
+                : [];
+          const paginationResp = data?.pagination || data?.data?.pagination;
+
+          const adapted = rawList.map((item: any) => ({
+            id: item._id || `${item.manufacturer || ''}-${item.model || item.name || ''}`,
+            component_id: item._id,
+            partNumber: item.model || item.name || '-',
+            manufacturer: item.manufacturer || '国产厂商',
+            mainCategory: item.level1 || '',
+            primaryCategory: item.level2 || '',
+            secondaryCategory: item.level3 || '',
+            package: item.package || '-',
+            top: item.temperature_range || '',
+            qualityLevel: item.quality || '',
+            lifecycle: item.space_supply || '',
+            standards: [],
+            description: item.key_specs || '',
+            functionalPerformance: `${item.level1 || ''} / ${item.level2 || ''}`.trim(),
+            referencePrice: 0,
+            parameters: {},
+            radiationSensitivity: undefined,
+            suppliers: [],
+          }));
+          setComponents(adapted);
+          setParameterDefinitions([]);
+          setDynamicColumns([]);
+          const totalCount = typeof paginationResp?.total === 'number'
+            ? paginationResp.total
+            : (typeof data?.total === 'number' ? data.total : adapted.length);
+          const nextPage = typeof paginationResp?.page === 'number' ? paginationResp.page : pageToUse;
+          setTotal(totalCount);
+          setPaginationState(prev => ({ ...prev, total: totalCount, current: nextPage, pageSize }));
+          setCurrentPage(nextPage);
+          return;
+        }
+
         const rawComponents = Array.isArray(data.components) ? data.components : [];
 
         // 保存候选参数定义，并生成横向动态列（Beta）
@@ -833,12 +899,17 @@ const ComponentSearch: React.FC = () => {
 
     // 如果有分类参数，转换为 familyPath 并设置到 selectedCategory
     if (category) {
-      initialFamilyPath = getFamilyPathFromCategory(category);
-      if (initialFamilyPath.length > 0) {
+      if (isDomestic) {
+        initialFamilyPath = [category];
         setSelectedCategory(initialFamilyPath);
       } else {
-        // 如果找不到对应的 familyPath，清空 selectedCategory
-        setSelectedCategory([]);
+        initialFamilyPath = getFamilyPathFromCategory(category);
+        if (initialFamilyPath.length > 0) {
+          setSelectedCategory(initialFamilyPath);
+        } else {
+          // 如果找不到对应的 familyPath，清空 selectedCategory
+          setSelectedCategory([]);
+        }
       }
     } else {
       // 如果没有分类参数，清空 selectedCategory（不显示全局数据）
@@ -949,6 +1020,29 @@ const ComponentSearch: React.FC = () => {
     setDetailParameters([]);
     setDetailLoading(true);
     setDetailModalVisible(true);
+
+    if (isDomestic) {
+      // 国产数据：使用已加载的基本信息展示
+      const basicParams: DetailParameter[] = [];
+      if (component.key_specs) {
+        basicParams.push({ key: 'key_specs', name: '关键性能', displayValue: component.key_specs });
+      }
+      if (component.top) {
+        basicParams.push({ key: 'temperature_range', name: '工作温度范围', displayValue: component.top });
+      }
+      if (component.package) {
+        basicParams.push({ key: 'package', name: '封装形式', displayValue: component.package });
+      }
+      if (component.radiation) {
+        basicParams.push({ key: 'radiation', name: '抗辐照指标', displayValue: component.radiation });
+      }
+      if (component.qualityLevel) {
+        basicParams.push({ key: 'quality', name: '质量等级', displayValue: component.qualityLevel });
+      }
+      setDetailParameters(basicParams);
+      setDetailLoading(false);
+      return;
+    }
 
     if (!component.component_id) {
       message.warning('当前器件缺少组件ID，无法获取详细参数');
@@ -1246,6 +1340,7 @@ const ComponentSearch: React.FC = () => {
             >
               <CategoryFilter
                 selectedCategory={selectedCategory}
+                source={source as 'import' | 'domestic'}
                 lockTopCategory={
                   // 将当前已选分类的顶层（父级）作为锁定大类
                   selectedCategory.length > 0 ? selectedCategory[selectedCategory.length - 1] : undefined

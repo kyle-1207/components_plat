@@ -28,6 +28,7 @@ const TOP_CATEGORIES = [
 interface CategoryFilterProps {
   onCategoryChange: (categoryPath: string[]) => void;
   selectedCategory?: string[];
+  source?: 'import' | 'domestic';
   /**
    * 锁定顶层分类：
    * - 设置后，“浏览所有分类”只显示该顶层分类及其子类
@@ -48,6 +49,7 @@ interface CategoryNode {
 const CategoryFilter: React.FC<CategoryFilterProps> = ({ 
   onCategoryChange, 
   selectedCategory,
+  source = 'import',
   lockTopCategory
 }) => {
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
@@ -55,10 +57,10 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
   const [subCategories, setSubCategories] = useState<any>({});
   const [loading, setLoading] = useState(false);
 
-  // 加载 meta.json 数据并构建分类树
+  // 加载分类树，source 变化时重新加载
   useEffect(() => {
     loadCategoryTree();
-  }, []);
+  }, [source]);
 
   // 当锁定顶层分类变化时，同步激活的顶层分类
   useEffect(() => {
@@ -89,7 +91,8 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
   const loadCategoryTree = async () => {
     setLoading(true);
     try {
-      const data = await httpClient.get<{ tree: CategoryNode[]; subCategories: any }>('/api/doeeet/categories/tree', {
+      const endpoint = source === 'domestic' ? '/api/domestic/categories/tree' : '/api/doeeet/categories/tree';
+      const data = await httpClient.get<{ tree: CategoryNode[]; subCategories: any }>(endpoint, {
         timeoutMs: 15000,
       });
       const fullTree = (data?.tree || []) as CategoryNode[];

@@ -195,6 +195,21 @@ const componentCategoriesBase = [
   },
 ];
 
+// 国产元器件一级分类（来自 classification.json 一级分类），补充图标/颜色
+const domesticCategoriesBase = [
+  { title: '数字单片集成电路', icon: <NodeIndexOutlined />, color: '#2f54eb' },
+  { title: '模拟单片集成电路', icon: <HeatMapOutlined />, color: '#fa541c' },
+  { title: '混合集成电路',   icon: <PartitionOutlined />, color: '#13c2c2' },
+  { title: '半导体分立器件',   icon: <BranchesOutlined />, color: '#13c2c2' },
+  { title: '固态微波器件与电路', icon: <RadarChartOutlined />, color: '#9254de' },
+  { title: '真空电子器件',     icon: <PoweroffOutlined />, color: '#fa8c16' },
+  { title: '光电子器件',       icon: <BulbOutlined />, color: '#faad14' },
+  { title: '机电组件',         icon: <ApiOutlined />, color: '#1890ff' },
+  { title: '电能源',           icon: <ThunderboltOutlined />, color: '#f5222d' },
+  { title: '通用与特种元件',   icon: <AppstoreOutlined />, color: '#52c41a' },
+  { title: '微系统',           icon: <BuildOutlined />, color: '#722ed1' },
+];
+
 // 7大核心服务模块
 const serviceModules = [
   {
@@ -300,6 +315,7 @@ const latestNews = [
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [searchCategory, setSearchCategory] = useState('model');
+  const [searchSource, setSearchSource] = useState<'import' | 'domestic'>('import');
   const [componentCategories, setComponentCategories] = useState(componentCategoriesBase.map(cat => ({ ...cat, count: '...' })));
   const [statsLoading, setStatsLoading] = useState(true);
 
@@ -341,13 +357,13 @@ const HomePage: React.FC = () => {
       // 根据搜索类别设置不同的查询参数
       if (searchCategory === 'supplier') {
         // 供应商搜索：传递 manufacturer 参数
-        navigate(`/components/search?manufacturer=${encodeURIComponent(value)}`);
+        navigate(`/components/search?source=${searchSource}&manufacturer=${encodeURIComponent(value)}`);
       } else if (searchCategory === 'standard') {
         // 标准编号搜索：传递 standard 参数（如果后端支持）
-        navigate(`/components/search?q=${encodeURIComponent(value)}&category=standard`);
+        navigate(`/components/search?source=${searchSource}&q=${encodeURIComponent(value)}&category=standard`);
       } else {
         // 型号规格搜索：传递 q 参数
-        navigate(`/components/search?q=${encodeURIComponent(value)}&category=model`);
+        navigate(`/components/search?source=${searchSource}&q=${encodeURIComponent(value)}&category=model`);
       }
     }
   };
@@ -491,7 +507,23 @@ const HomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* 搜索框 */}
+              {/* 搜索源切换 */}
+              <div style={{ textAlign: 'left', marginBottom: 12 }}>
+                <Space size="middle">
+                  <Text style={{ color: 'rgba(255,255,255,0.8)' }}>搜索范围：</Text>
+                  <Select
+                    value={searchSource}
+                    onChange={(v) => setSearchSource(v)}
+                    style={{ width: 160 }}
+                    options={[
+                      { label: '进口元器件', value: 'import' },
+                      { label: '国产元器件', value: 'domestic' },
+                    ]}
+                  />
+                </Space>
+              </div>
+
+              {/* 搜索框 */}
             <Search
               placeholder={
                 searchCategory === 'model' ? "搜索元器件的型号规格..." :
@@ -694,66 +726,119 @@ const HomePage: React.FC = () => {
           >
             按类别浏览
           </Title>
-          <Row gutter={[20, 20]} justify="center">
-            {componentCategories.map((category, index) => (
-              <Col xs={12} sm={8} md={6} lg={4} key={index}>
-                <Card
-                  hoverable
-                  style={{
-                    height: '140px',
-                    borderRadius: 8,
-                    border: '1px solid #e2e8f0',
-                    transition: 'all 0.3s',
-                    cursor: 'pointer'
-                  }}
-                  styles={{ 
-                    body: {
-                      padding: '20px 16px',
-                      height: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center',
-                      alignItems: 'center'
-                    }
-                  }}
-                  onClick={() => handleCategoryClick(category.title)}
-                >
-                  <div 
-                    style={{ 
-                      fontSize: '24px', 
-                      marginBottom: 12,
-                      color: category.color,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    {category.icon}
-                  </div>
-                  <Title 
-                    level={5} 
-                    style={{ 
-                      marginBottom: 4, 
-                      color: category.color,
-                      textAlign: 'center',
-                      fontSize: '14px',
-                      fontWeight: '600'
-                    }}
-                  >
-                    {category.title}
-                  </Title>
-                  <Text 
-                    style={{ 
-                      color: '#64748b',
-                      fontSize: '12px',
-                      textAlign: 'center'
-                    }}
-                  >
-                    {category.subtitle}
-                  </Text>
-                </Card>
-              </Col>
-            ))}
+          <Row gutter={[24, 24]}>
+            <Col xs={24} lg={12}>
+              <Card bordered style={{ borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <Title level={4} style={{ marginBottom: 16, color: '#1e293b' }}>进口元器件</Title>
+                <Row gutter={[20, 20]}>
+                  {componentCategories.map((category, index) => (
+                    <Col xs={12} sm={8} md={6} key={`imp-${index}`}>
+                      <Card
+                        hoverable
+                        style={{
+                          height: '140px',
+                          borderRadius: 8,
+                          border: '1px solid #e2e8f0',
+                          transition: 'all 0.3s',
+                          cursor: 'pointer'
+                        }}
+                        styles={{ 
+                          body: {
+                            padding: '20px 16px',
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                          }
+                        }}
+                        onClick={() => {
+                          setSearchSource('import');
+                          handleCategoryClick(category.title);
+                        }}
+                      >
+                        <div 
+                          style={{ 
+                            fontSize: '24px', 
+                            marginBottom: 12,
+                            color: category.color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          {category.icon}
+                        </div>
+                        <Title 
+                          level={5} 
+                          style={{ 
+                            marginBottom: 4, 
+                            color: category.color,
+                            textAlign: 'center',
+                            fontSize: '14px',
+                            fontWeight: '600'
+                          }}
+                        >
+                          {category.title}
+                        </Title>
+                        <Text 
+                          style={{ 
+                            color: '#64748b',
+                            fontSize: '12px',
+                            textAlign: 'center'
+                          }}
+                        >
+                          {category.subtitle}
+                        </Text>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              </Card>
+            </Col>
+
+            <Col xs={24} lg={12}>
+              <Card bordered style={{ borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <Title level={4} style={{ marginBottom: 16, color: '#1e293b' }}>国产元器件</Title>
+                <Row gutter={[20, 20]}>
+                  {domesticCategoriesBase.map((cat, index) => (
+                    <Col xs={12} sm={8} md={6} key={`dom-${index}`}>
+                      <Card
+                        hoverable
+                        style={{
+                          height: '140px',
+                          borderRadius: 8,
+                          border: '1px solid #e2e8f0',
+                          transition: 'all 0.3s',
+                          cursor: 'pointer'
+                        }}
+                        styles={{ 
+                          body: {
+                            padding: '20px 16px',
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                          }
+                        }}
+                        onClick={() => {
+                          setSearchSource('domestic');
+                          navigate(`/components/search?source=domestic&category=${encodeURIComponent(cat.title)}`);
+                        }}
+                      >
+                        <div style={{ fontSize: '24px', marginBottom: 12, color: cat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {cat.icon}
+                        </div>
+                        <Title level={5} style={{ marginBottom: 4, color: cat.color, textAlign: 'center', fontSize: '14px', fontWeight: '600' }}>
+                          {cat.title}
+                        </Title>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              </Card>
+            </Col>
           </Row>
         </section>
 
