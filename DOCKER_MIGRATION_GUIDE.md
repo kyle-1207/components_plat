@@ -115,6 +115,23 @@ docker images
 
 ### 步骤4：备份 MongoDB 数据库
 
+> ⚠️ **本次迁移受限于 Windows 7 机器配置，只迁移业务基础数据，不迁移 `business_plat` 数据库中的以下大体量/DoEEEt 相关集合：**
+>
+> - `parameters`
+> - `components`
+> - `parameter_definitions`
+>
+> **好处：**
+> - 显著减小备份体积和恢复时间  
+> - 降低对磁盘、内存和 CPU 的压力，适配配置较低的 Windows 7 机器  
+>
+> **影响：**
+> - 不提供基于 DoEEEt 全量元器件和动态参数的高级检索/分析能力  
+> - 依赖 `components` / `parameter_definitions` / `parameters` 的 DoEEEt 相关功能在目标环境中暂不可用  
+> - 其它业务数据（如国产产品、标准、质量告警等）仍可正常使用  
+>
+> 后续如果目标机器升级了硬件配置，可以单独为这些集合做一次完整迁移。
+
 **如果 MongoDB 正在运行（非容器）：**
 
 ```powershell
@@ -124,8 +141,14 @@ docker images
 # 创建备份目录
 New-Item -ItemType Directory -Force -Path ".\mongodb_backup"
 
-# 备份数据库
-mongodump --uri="mongodb://127.0.0.1:27017/business_plat" --out=".\mongodb_backup\business_plat_backup"
+# 备份数据库（排除大体量集合：parameters / components / parameter_definitions）
+mongodump `
+  --uri="mongodb://127.0.0.1:27017/business_plat" `
+  --db=business_plat `
+  --excludeCollection=parameters `
+  --excludeCollection=components `
+  --excludeCollection=parameter_definitions `
+  --out=".\mongodb_backup\business_plat_backup"
 
 # 验证备份
 Get-ChildItem ".\mongodb_backup" -Recurse | Measure-Object -Property Length -Sum
@@ -140,8 +163,13 @@ docker-compose -f docker-compose.prod.yml up -d mongodb
 # 等待 MongoDB 启动
 Start-Sleep -Seconds 15
 
-# 备份数据库
-docker exec business_plat_mongodb mongodump --db=business_plat --out=/backup/business_plat_backup
+# 备份数据库（排除大体量集合：parameters / components / parameter_definitions）
+docker exec business_plat_mongodb mongodump `
+  --db=business_plat `
+  --excludeCollection=parameters `
+  --excludeCollection=components `
+  --excludeCollection=parameter_definitions `
+  --out=/backup/business_plat_backup
 
 # 复制备份文件到主机
 docker cp business_plat_mongodb:/backup/business_plat_backup .\mongodb_backup\
@@ -465,6 +493,12 @@ docker rm temp_mongodb
 
 **注意：** 在 Docker Toolbox 中，Windows 路径需要使用 `/c/` 格式。
 
+> ℹ️ **提醒：** 由于备份时使用了 `--excludeCollection=parameters`、`--excludeCollection=components`、`--excludeCollection=parameter_definitions`，目标环境中的 `business_plat` 仅包含其它业务集合（如 `domestic_products`、`standards`、质量相关集合等），不包含 DoEEEt 的大数据集合。  
+> 后续如果目标机器升级了硬件配置，可以按以下思路分别迁移这些集合：
+> - 在源环境单独 mongodump 这几个集合（只导出集合，不导出整库）  
+> - 在目标环境使用 mongorestore 只恢复对应集合  
+> 这样可以分阶段按需补齐大体量数据。
+
 ### 步骤7：启动生产环境服务
 
 ```powershell
@@ -614,6 +648,64 @@ docker system df
 # 清理未使用的资源
 docker system prune -a
 ```
+
+---
+
+## 🚀 运行方式总览（一键启动生产环境）
+
+### 核心结论
+
+- **Win7 机器上不需要单独安装 MongoDB / Redis / Node.js**，所有服务都在 Docker 容器里运行。
+- 迁移完成后，在 Windows 7 上的日常操作基本就是：**在 Docker Quickstart Terminal 里执行一条命令启动，另一条命令停止**。
+
+### 启动所有服务（生产环境）
+
+```powershell
+# 1. 打开 Docker Quickstart Terminal
+
+# 2. 切换到迁移包目录
+cd /c/Business_plat/docker_migration_package
+
+# 3. 使用生产环境配置启动所有服务（后台运行）
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+该命令会一次性启动以下容器：
+
+- `business_plat_mongodb`  —— MongoDB 数据库（只包含已迁移的业务集合）
+- `business_plat_redis`   —— Redis 缓存
+- `business_plat_backend` —— 后端 API（生产模式）
+- `business_plat_frontend`—— 前端（Nginx 提供静态页面）
+
+### 停止和查看状态
+
+```powershell
+# 查看服务状态
+docker-compose -f docker-compose.prod.yml ps
+
+# 查看实时日志
+docker-compose -f docker-compose.prod.yml logs -f
+
+# 停止所有服务并删除容器
+docker-compose -f docker-compose.prod.yml down
+```
+
+### 访问方式（Docker Toolbox 场景）
+
+```powershell
+# 获取 Docker 虚拟机 IP
+docker-machine ip default
+# 通常为：192.168.99.100
+```
+
+在浏览器中访问：
+
+- 前端页面：`http://192.168.99.100:3000`
+- 后端健康检查：`http://192.168.99.100:3001/health`
+
+> ⚠️ 提醒：  
+> - **不要使用 localhost**，因为服务运行在 Docker 虚拟机里，而不是 Win7 本机。  
+> - 如需修改端口或绑定地址，请在 `docker-compose.prod.yml` 中调整 `ports` 配置。
 
 ---
 
