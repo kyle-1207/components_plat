@@ -10,6 +10,11 @@ import {
   searchStandardsText,
   getStandardCategories
 } from '../controllers/standardController';
+import {
+  reindexStandardAttachments,
+  getStandardAttachment,
+  downloadStandardAttachment,
+} from '../controllers/standardAttachmentController';
 import { asyncHandler } from '../middleware/errorHandler';
 
 const router = Router();
@@ -41,9 +46,24 @@ router.get('/statistics', asyncHandler(getStandardStatistics));
 router.get('/search', asyncHandler(searchStandardsText));
 
 /**
- * 获取标准类别（category）
+ * 获取标准类别（category）- 必须在参数路由之前
  */
 router.get('/categories', asyncHandler(getStandardCategories));
+
+/**
+ * 附件索引重建（内部使用）
+ */
+router.post('/attachments/reindex', asyncHandler(reindexStandardAttachments));
+
+/**
+ * 获取附件元数据
+ */
+router.get('/:standardCode/attachment', asyncHandler(getStandardAttachment));
+
+/**
+ * 下载附件
+ */
+router.get('/:standardCode/download', asyncHandler(downloadStandardAttachment));
 
 /**
  * @route   POST /api/standards/compare

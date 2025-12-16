@@ -1069,6 +1069,20 @@ JSON.parse(comp.family_path.replace(/'/g, '"'))
 9. 🔄 真机测试动态参数表头
 10. 🔄 性能测试和优化
 
+### 标准文本下载方案（新增）
+- 场景：标准查询页面“下载”按钮未实现；标准 PDF 存放于 `F:\Business_plat\MIL标准数据\` 下的分类子目录（MIL-STD/MIL-PRF/MIL-HDBK/MIL-SPECS），文件名与 `standards` 集合中的 `standardCode` 一一对应（仅支持 pdf，暂不支持多文件/上传）。
+- 后端方案：
+  1) 新增 StandardAttachmentService：递归扫描 `STANDARD_BASE_DIR`（默认 `F:\Business_plat\MIL标准数据`），匹配 pdf 文件名（去扩展名、忽略大小写）即 `standardCode`，建立索引写入 DB（集合 `standard_attachments`，字段：standard_code 唯一、file_path、file_name、file_size、last_modified）。
+  2) 接口：
+     - `POST /api/standards/attachments/reindex`：重建索引（内部/管理员用）。
+     - `GET /api/standards/:standardCode/attachment`：返回元数据（downloadUrl）。
+     - `GET /api/standards/:standardCode/download`：下载文件（file_url 404 则提示未找到）。
+  3) 不允许多文件同一标准码；仅支持 pdf；上传功能暂不实现（后续可扩展）。
+- 前端方案：
+  - 标准查询页“下载”按钮调用 `GET /api/standards/<standardCode>/download`，若返回 404 显示“未找到文件”；可选先调元数据接口判断存在性。
+- 校验要点：
+  - reindex 返回 indexed>0；若某条未匹配，检查文件名是否与 standardCode 完全一致（去掉 .pdf）。
+
 ### 下周 (11月4日 - 11月10日)
 1. 🔄 执行数据库备份（如需要）
 2. 🔄 执行数据格式迁移（如需要）

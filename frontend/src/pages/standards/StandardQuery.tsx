@@ -16,6 +16,7 @@ import {
   Tabs,
   Tree,
   Timeline,
+  message,
 } from 'antd';
 import {
   SearchOutlined,
@@ -41,18 +42,18 @@ interface Standard {
   status: string;
   publishDate: string;
   effectiveDate: string;
-  organization: string;
-  scope: string;
-  description: string;
-  relatedStandards: string[];
+  organization?: string;
+  scope?: string;
+  description?: string;
+  relatedStandards?: string[];
   replacedBy?: string;
-  historyVersions: Array<{
+  historyVersions?: Array<{
     version: string;
     date: string;
     changes: string;
   }>;
   downloadUrl?: string;
-  viewCount: number;
+  viewCount?: number;
   category?: string[];
 }
 
@@ -163,9 +164,36 @@ const StandardQuery: React.FC = () => {
     setDetailModalVisible(true);
   };
 
-  const handleDownload = (standard: Standard) => {
-    // 模拟下载
-    console.log('下载标准:', standard.standardCode);
+  const handleDownload = async (standard: Standard) => {
+    if (!standard.standardCode) {
+      message.warning('缺少标准编号，无法下载');
+      return;
+    }
+    const standardCode = standard.standardCode.trim();
+    console.log('[StandardQuery] handleDownload standardCode:', standardCode);
+    const apiUrl = `/api/standards/${encodeURIComponent(standardCode)}/attachment`;
+    console.log('[StandardQuery] handleDownload API URL:', apiUrl);
+    try {
+      // httpClient 会自动解包 data，后端返回 { success, data: { items } }
+      const resp = await httpClient.get<any>(apiUrl);
+      console.log('[StandardQuery] handleDownload response:', JSON.stringify(resp, null, 2));
+      // httpClient 已解包，resp 应该是 { items: [...] }
+      // 兼容多种响应格式
+      const items = resp?.items ?? resp?.data?.items ?? (Array.isArray(resp) ? resp : []);
+      console.log('[StandardQuery] handleDownload items:', items);
+      if (!Array.isArray(items) || items.length === 0 || !items[0]?.downloadUrl) {
+        message.warning(`未找到附件文件（标准编号: ${standardCode}）。请检查文件名是否与标准编号匹配，或执行索引操作：POST /api/standards/attachments/reindex`);
+        return;
+      }
+      const url = items[0].downloadUrl as string;
+      console.log('[StandardQuery] handleDownload opening URL:', url);
+      // 确保 URL 是完整的（如果是相对路径，需要加上协议和域名）
+      const fullUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+      window.open(fullUrl, '_blank');
+    } catch (error: any) {
+      console.error('[StandardQuery] 标准下载失败:', error);
+      message.error(error?.message || '下载失败，请稍后重试');
+    }
   };
 
   const columns = [
@@ -418,7 +446,12 @@ const StandardQuery: React.FC = () => {
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={[
-          <Button key="download" type="primary" icon={<DownloadOutlined />}>
+          <Button
+            key="download"
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={() => selectedStandard && handleDownload(selectedStandard)}
+          >
             下载标准文档
           </Button>,
         ]}
@@ -441,20 +474,24 @@ const StandardQuery: React.FC = () => {
                 <Descriptions.Item label="状态">
                   <Tag color="green">{selectedStandard.status}</Tag>
                 </Descriptions.Item>
-                <Descriptions.Item label="发布日期">{selectedStandard.publishDate}</Descriptions.Item>
-                <Descriptions.Item label="生效日期">{selectedStandard.effectiveDate}</Descriptions.Item>
-                <Descriptions.Item label="发布组织">{selectedStandard.organization}</Descriptions.Item>
-                <Descriptions.Item label="适用范围">{selectedStandard.scope}</Descriptions.Item>
+                <Descriptions.Item label="发布日期">{formatDate(selectedStandard.publishDate)}</Descriptions.Item>
+                <Descriptions.Item label="生效日期">{formatDate(selectedStandard.effectiveDate)}</Descriptions.Item>
+                <Descriptions.Item label="发布组织">{selectedStandard.organization || '-'}</Descriptions.Item>
+                <Descriptions.Item label="适用范围">{selectedStandard.scope || '-'}</Descriptions.Item>
                 <Descriptions.Item label="标题" span={2}>
                   <Title level={5}>{selectedStandard.title}</Title>
                 </Descriptions.Item>
                 <Descriptions.Item label="描述" span={2}>
-                  <Text>{selectedStandard.description}</Text>
+                  <Text>{selectedStandard.description || '暂无描述'}</Text>
                 </Descriptions.Item>
                 <Descriptions.Item label="相关标准" span={2}>
-                  {selectedStandard.relatedStandards.map(standard => (
-                    <Tag key={standard} color="geekblue">{standard}</Tag>
-                  ))}
+                  {selectedStandard.relatedStandards && selectedStandard.relatedStandards.length > 0 ? (
+                    selectedStandard.relatedStandards.map(standard => (
+                      <Tag key={standard} color="geekblue">{standard}</Tag>
+                    ))
+                  ) : (
+                    <Text type="secondary">暂无相关标准</Text>
+                  )}
                 </Descriptions.Item>
               </Descriptions>
                 )
@@ -464,17 +501,23 @@ const StandardQuery: React.FC = () => {
                 label: "版本历史",
                 children: (
               <Timeline>
-                {selectedStandard.historyVersions.map((version, index) => (
-                  <Timeline.Item key={index} dot={<HistoryOutlined />}>
-                    <div>
-                      <Text strong>版本 {version.version}</Text>
-                      <Text type="secondary" style={{ marginLeft: 16 }}>{version.date}</Text>
-                    </div>
-                    <div style={{ marginTop: 8 }}>
-                      <Text>{version.changes}</Text>
-                    </div>
+                {selectedStandard.historyVersions && selectedStandard.historyVersions.length > 0 ? (
+                  selectedStandard.historyVersions.map((version, index) => (
+                    <Timeline.Item key={index} dot={<HistoryOutlined />}>
+                      <div>
+                        <Text strong>版本 {version.version}</Text>
+                        <Text type="secondary" style={{ marginLeft: 16 }}>{version.date}</Text>
+                      </div>
+                      <div style={{ marginTop: 8 }}>
+                        <Text>{version.changes}</Text>
+                      </div>
+                    </Timeline.Item>
+                  ))
+                ) : (
+                  <Timeline.Item>
+                    <Text type="secondary">暂无版本历史</Text>
                   </Timeline.Item>
-                ))}
+                )}
               </Timeline>
                 )
               },
@@ -483,15 +526,17 @@ const StandardQuery: React.FC = () => {
                 label: "统计信息",
                 children: (
               <Descriptions column={1} bordered>
-                <Descriptions.Item label="查看次数">{selectedStandard.viewCount.toLocaleString()}</Descriptions.Item>
+                <Descriptions.Item label="查看次数">
+                  {selectedStandard.viewCount !== undefined ? selectedStandard.viewCount.toLocaleString() : '-'}
+                </Descriptions.Item>
                 <Descriptions.Item label="下载链接">
-                  {selectedStandard.downloadUrl ? (
-                    <Button type="link" icon={<DownloadOutlined />}>
-                      {selectedStandard.downloadUrl}
-                    </Button>
-                  ) : (
-                    <Text type="secondary">暂无下载链接</Text>
-                  )}
+                  <Button
+                    type="link"
+                    icon={<DownloadOutlined />}
+                    onClick={() => handleDownload(selectedStandard)}
+                  >
+                    点击下载
+                  </Button>
                 </Descriptions.Item>
               </Descriptions>
                 )

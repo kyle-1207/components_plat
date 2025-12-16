@@ -8,6 +8,7 @@ export { alertContextBuilder } from './AlertContextBuilder';
 export { premiumProductService, PremiumProductService } from './PremiumProductService';
 export { domesticProductService, DomesticProductService } from './DomesticProductService';
 export { domesticAttachmentService } from './DomesticAttachmentService';
+export { standardAttachmentService } from './StandardAttachmentService';
 
 export type {
   ComponentSearchParams,
