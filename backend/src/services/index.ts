@@ -7,6 +7,7 @@ export { alertRuleEngine } from './AlertRuleEngine';
 export { alertContextBuilder } from './AlertContextBuilder';
 export { premiumProductService, PremiumProductService } from './PremiumProductService';
 export { domesticProductService, DomesticProductService } from './DomesticProductService';
+export { domesticAttachmentService } from './DomesticAttachmentService';
 
 export type {
   ComponentSearchParams,

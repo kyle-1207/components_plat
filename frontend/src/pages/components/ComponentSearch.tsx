@@ -205,6 +205,9 @@ interface ComponentWithUI extends Omit<Component, 'qualityLevel' | 'lifecycle'> 
   mainCategory?: string; // 主分类（如：航空电子、处理器、集成电路）
   primaryCategory?: string;  // 一级分类（如：运算放大器类、电源管理类）
   secondaryCategory?: string; // 二级分类（如：精密运算放大器、线性稳压器(LDO)）
+  materialCode?: string; // 国产物料编码（用于附件下载）
+  key_specs?: string;
+  radiation?: any;
   package?: string;
   top?: string;
   qualityLevel?: string; // 覆盖为string类型以支持中文
@@ -266,10 +269,6 @@ const ComponentSearch: React.FC = () => {
     if (urlSource === 'import' || urlSource === 'domestic') {
       return urlSource;
     }
-    
-    // 2. 如果 URL 没有 source，尝试从其他线索推断
-    const manufacturer = searchParams.get('manufacturer');
-    const category = searchParams.get('category');
     
     // 检查 referrer 是否来自国产供应商搜索页面
     // 注意：referrer 可能为空（直接访问、隐私模式等）
@@ -399,6 +398,53 @@ const ComponentSearch: React.FC = () => {
     pageSize: 10,
     total: 0,
   });
+  // 附件下载缓存：materialCode -> downloadUrl | null
+  const [attachmentCache, setAttachmentCache] = useState<Record<string, string | null>>({});
+
+  // 获取附件下载地址（缓存）
+  const fetchAttachmentDownloadUrl = useCallback(
+    async (materialCode?: string): Promise<string | null> => {
+      if (!materialCode) return null;
+      const key = materialCode.trim();
+      if (!key) return null;
+
+      if (attachmentCache[key] !== undefined) {
+        return attachmentCache[key];
+      }
+
+      try {
+        const resp = await httpClient.get<any>(`/api/domestic/attachments/${encodeURIComponent(key)}`);
+        // httpClient 会解包 data，后端返回 { success, data: { items } }
+        const items = resp?.items || resp?.data?.items;
+        const url = Array.isArray(items) && items.length > 0 ? items[0]?.downloadUrl || null : null;
+        setAttachmentCache(prev => ({ ...prev, [key]: url }));
+        return url;
+      } catch (error) {
+        console.error('获取附件下载地址失败:', error);
+        message.error('获取附件失败');
+        setAttachmentCache(prev => ({ ...prev, [key]: null }));
+        return null;
+      }
+    },
+    [attachmentCache]
+  );
+
+  // 点击下载附件
+  const handleDownloadAttachment = useCallback(
+    async (materialCode?: string) => {
+      if (!materialCode) {
+        message.warning('当前器件缺少物料编码，无法下载附件');
+        return;
+      }
+      const url = await fetchAttachmentDownloadUrl(materialCode);
+      if (url) {
+        window.open(url, '_blank');
+      } else {
+        message.warning('未找到附件文件');
+      }
+    },
+    [fetchAttachmentDownloadUrl]
+  );
   
   // 新增：分类筛选和动态参数相关状态
   const [selectedCategory, setSelectedCategory] = useState<string[]>([]);
@@ -619,6 +665,7 @@ const ComponentSearch: React.FC = () => {
             component_id: item._id,
             partNumber: item.model || item.name || '-',
             manufacturer: item.manufacturer || '国产厂商',
+        materialCode: item.material_code || item.materialCode,
             mainCategory: item.level1 || '',
             primaryCategory: item.level2 || '',
             secondaryCategory: item.level3 || '',
@@ -1372,6 +1419,24 @@ const ComponentSearch: React.FC = () => {
         return <Tag color={color}>{lifecycle}</Tag>;
       },
     },
+    // 附件（仅国产）
+    ...(isDomestic
+      ? [
+          {
+            title: '附件',
+            key: 'attachment',
+            width: 90,
+            render: (_: any, record: ComponentWithUI) =>
+              record.materialCode ? (
+                <Button type="link" onClick={() => handleDownloadAttachment(record.materialCode!)}>
+                  下载
+                </Button>
+              ) : (
+                <span style={{ color: '#999' }}>-</span>
+              ),
+          } as any,
+        ]
+      : []),
     {
       title: '操作',
       key: 'action',
@@ -1712,6 +1777,22 @@ const ComponentSearch: React.FC = () => {
             </Descriptions.Item>
               </Descriptions>
             </Card>
+
+            {/* 国产附件下载 */}
+            {isDomestic && selectedComponent.materialCode && (
+              <Card
+                size="small"
+                title="附件"
+                styles={{ header: { fontSize: 16, fontWeight: 600 }, body: { padding: '12px 16px' } }}
+              >
+                <Space>
+                  <Button type="primary" onClick={() => handleDownloadAttachment(selectedComponent.materialCode)}>
+                    下载附件
+                  </Button>
+                  <span style={{ color: '#6b7280' }}>物料编码：{selectedComponent.materialCode}</span>
+                </Space>
+              </Card>
+            )}
 
             {(selectedComponent.functionalPerformance || selectedComponent.description) && (
               <Card
