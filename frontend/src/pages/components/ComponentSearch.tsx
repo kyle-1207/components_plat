@@ -1926,6 +1926,7 @@ const ComponentSearch: React.FC = () => {
       <ComponentCompareModal
         visible={compareModalVisible}
         componentIds={compareComponentIds}
+        source={finalSource as 'import' | 'domestic'}
         onClose={() => setCompareModalVisible(false)}
       />
     </div>

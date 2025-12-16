@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { searchDomesticProducts, getDomesticCategoryTree } from '../controllers/domesticProductController';
+import { searchDomesticProducts, getDomesticCategoryTree, compareDomesticProducts } from '../controllers/domesticProductController';
 import {
   reindexDomesticAttachments,
   getDomesticAttachments,
@@ -38,6 +38,13 @@ router.get('/attachments/:materialCode/download', asyncHandler(downloadDomesticA
  * 重新扫描目录并建立索引（谨慎开放，默认无需鉴权，可按需加中间件）
  */
 router.post('/attachments/reindex', asyncHandler(reindexDomesticAttachments));
+
+/**
+ * POST /api/domestic/compare
+ * 国产元器件对比（基础信息）
+ * body: { componentIds: string[] }
+ */
+router.post('/compare', asyncHandler(compareDomesticProducts));
 
 export default router;
 

@@ -9,6 +9,7 @@ interface ComponentCompareModalProps {
   visible: boolean;
   componentIds: string[];
   onClose: () => void;
+  source?: 'import' | 'domestic';
 }
 
 interface ComponentInfo {
@@ -16,10 +17,19 @@ interface ComponentInfo {
   part_number: string;
   manufacturer_name: string;
   part_type: string;
-  quality_name: string;
-  obsolescence_type: string;
-  has_stock: string;
-  family_path: string;
+  quality_name?: string;
+  obsolescence_type?: string;
+  has_stock?: string;
+  family_path?: string;
+  // 国产元器件额外字段
+  key_specs?: string;
+  temperature_range?: string;
+  package?: string;
+  price_range?: string;
+  lead_time?: string;
+  radiation?: string;
+  contact?: string;
+  is_promoted?: string;
 }
 
 interface ParameterValue {
@@ -40,6 +50,7 @@ const ComponentCompareModal: React.FC<ComponentCompareModalProps> = ({
   visible,
   componentIds,
   onClose,
+  source = 'import',
 }) => {
   const [loading, setLoading] = useState(false);
   const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
@@ -48,13 +59,18 @@ const ComponentCompareModal: React.FC<ComponentCompareModalProps> = ({
     if (visible && componentIds.length >= 2) {
       fetchComparisonData();
     }
-  }, [visible, componentIds]);
+  }, [visible, componentIds, source]);
 
   const fetchComparisonData = async () => {
     setLoading(true);
     try {
+      const endpoint =
+        source === 'domestic'
+          ? '/api/domestic/compare'
+          : '/api/doeeet/components/compare';
+
       const data = await httpClient.post<ComparisonData, { componentIds: string[] }>(
-        '/api/doeeet/components/compare',
+        endpoint,
         { componentIds },
         { timeoutMs: 15000, retries: 2, retryDelayMs: 400, suppressErrorMessage: true }
       );
@@ -129,11 +145,16 @@ const ComponentCompareModal: React.FC<ComponentCompareModalProps> = ({
       label: '分类',
       ...Object.fromEntries(
         comparisonData.components.map((comp, idx) => {
+          // 国产数据 family_path 是字符串，直接显示
+          if (source === 'domestic') {
+            return [`component_${idx}`, comp.family_path || '-'];
+          }
+          // 进口数据可能需要解析 JSON
           try {
-            const familyPath = JSON.parse(comp.family_path.replace(/'/g, '"'));
+            const familyPath = JSON.parse(comp.family_path?.replace(/'/g, '"') || '[]');
             return [`component_${idx}`, Array.isArray(familyPath) ? familyPath.join(' > ') : comp.family_path];
           } catch (e) {
-            return [`component_${idx}`, comp.family_path];
+            return [`component_${idx}`, comp.family_path || '-'];
           }
         })
       ),
@@ -155,7 +176,7 @@ const ComponentCompareModal: React.FC<ComponentCompareModalProps> = ({
         comparisonData.components.map((comp, idx) => [
           `component_${idx}`,
           <Tag key={idx} color={getStatusColor(comp.obsolescence_type)}>
-            {comp.obsolescence_type}
+            {comp.obsolescence_type || '-'}
           </Tag>,
         ])
       ),
@@ -172,6 +193,19 @@ const ComponentCompareModal: React.FC<ComponentCompareModalProps> = ({
         ])
       ),
     },
+    // 国产元器件：功能描述
+    ...(source === 'domestic' ? [{
+      key: 'key_specs',
+      label: '功能描述（关键性能）',
+      ...Object.fromEntries(
+        comparisonData.components.map((comp, idx) => [
+          `component_${idx}`,
+          <div key={idx} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {comp.key_specs || '-'}
+          </div>,
+        ])
+      ),
+    }] : []),
   ] : [];
 
   const getParameterDisplayName = (record: any) => {
