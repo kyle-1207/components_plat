@@ -411,6 +411,24 @@ notepad .env
 #    - CORS_ORIGIN: 前端地址（默认 http://localhost:3000）
 ```
 
+### 前端 API 地址（VITE_API_URL）说明
+
+- 默认构建的前端镜像使用 `http://localhost:3001`。在 **Docker Toolbox** 场景下，浏览器访问 `192.168.99.100:3000`，如果继续使用 `localhost` 会请求到本机而不是虚拟机，可能导致前端无法调用后端。
+- 如果后端在 Docker Toolbox 虚拟机中运行，请将 `VITE_API_URL` 设置为虚拟机 IP：
+
+```powershell
+# 获取虚拟机 IP（通常为 192.168.99.100）
+$vmIp = docker-machine ip default
+
+# 重新构建前端镜像并指定 API 地址
+docker-compose -f docker-compose.prod.yml build --build-arg VITE_API_URL=http://$vmIp:3001 frontend
+
+# 重新启动前端服务
+docker-compose -f docker-compose.prod.yml up -d frontend
+```
+
+- 如果使用 Docker Desktop 或 Linux，前后端在同一宿主机，保持 `http://localhost:3001` 即可。
+
 ### 步骤6：恢复 MongoDB 数据库
 
 ```powershell

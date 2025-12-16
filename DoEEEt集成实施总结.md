@@ -1105,6 +1105,22 @@ JSON.parse(comp.family_path.replace(/'/g, '"'))
 4. **文档完善**: API文档、用户手册等
 5. **国际化支持**: 中英文切换
 
+### 2025-12-16 进展（国产附件 & 标准文本下载）
+- ✅ **标准文本下载上线**  
+  - 后端：新增 `StandardAttachmentService`，目录扫描+索引到 `standard_attachments`，精确匹配 `standardCode`（含版本信息），接口 `/api/standards/attachments/reindex`、`/api/standards/:standardCode/attachment`、`/api/standards/:standardCode/download`。  
+  - 前端：标准查询页支持下载按钮，详情页下载按钮；日期格式仅显示年月日；空字段显示友好占位。  
+  - 路由顺序修复，避免 `/categories` 与参数路由冲突；索引日志与查询日志便于排查。  
+- ✅ **国产元器件附件下载稳定**  
+  - 后端：`DomesticAttachmentService` 目录扫描索引 PDF，API 获取与下载；国产对比接口返回功能描述与参数详情。  
+  - 前端：国产搜索页附件按钮、详情附件卡片支持下载；对比弹窗展示功能描述与参数详情。  
+- ✅ **功能完整性测试准备**  
+  - 提供《功能完整性测试清单.md》覆盖标准/进口/国产核心流程、附件、对比、API、分页、分类、错误处理等。  
+  - 提供 `test-core-functions.ps1` 快速脚本，一键验证核心 API（标准、附件、进口/国产搜索、分类树、健康检查）。  
+- ⚠️ 提醒  
+  - 标准附件精确匹配：`standardCode` 与 PDF 文件名（去 .pdf 后）必须一致，包含版本信息时两侧需完全相同。  
+  - 生产前请执行索引：`POST /api/standards/attachments/reindex` 与 `POST /api/domestic/attachments/reindex`。  
+  - Win7 迁移：后续使用容器打包，功能完整性测试优先执行清单或脚本。
+
 ## 📚 相关文档索引
 
 ### Phase 2.5: 动态参数表头完整文档
