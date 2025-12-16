@@ -76,23 +76,6 @@ const categoryToFamilyPathMap: Record<string, string[]> = {
   'RF Passive Components': ['RF Passive Components'],
 };
 
-/**
- * 将分类名称转换为 familyPath
- * @param categoryName 分类名称（中文或英文）
- * @returns familyPath 数组，如果找不到则返回空数组
- */
-  const getFamilyPathFromCategory = (categoryName: string): string[] => {
-    if (isDomestic) {
-      return categoryName ? [categoryName] : [];
-    }
-  if (!categoryName) return [];
-  // 直接查找映射
-  if (categoryToFamilyPathMap[categoryName]) {
-    return categoryToFamilyPathMap[categoryName];
-  }
-  // 如果找不到，返回空数组（表示不过滤）
-  return [];
-};
 
 // 主分类映射逻辑 - 对应11个主要分类 (暂时未使用)
 /*
@@ -267,8 +250,113 @@ const ComponentSearch: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const source = (searchParams.get('source') as 'import' | 'domestic') || 'import';
-  const isDomestic = source === 'domestic';
+  
+  /**
+   * 推断 source 参数
+   * 1. 优先从 URL 的 searchParams 读取 source
+   * 2. 若缺失，尝试从其他线索推断：
+   *    - 检查 referrer 是否来自国产供应商搜索页面
+   *    - 检查 URL 中是否有其他标识（如 category 是国产分类）
+   *    - 如果 URL 中有 manufacturer 参数但没有 source，可能是从供应商搜索进入
+   *    - 如果无法确定，默认使用 'import'
+   */
+  const source = useMemo((): 'import' | 'domestic' => {
+    // 1. 优先从 URL 参数读取
+    const urlSource = searchParams.get('source') as 'import' | 'domestic' | null;
+    if (urlSource === 'import' || urlSource === 'domestic') {
+      return urlSource;
+    }
+    
+    // 2. 如果 URL 没有 source，尝试从其他线索推断
+    const manufacturer = searchParams.get('manufacturer');
+    const category = searchParams.get('category');
+    
+    // 检查 referrer 是否来自国产供应商搜索页面
+    // 注意：referrer 可能为空（直接访问、隐私模式等）
+    if (typeof document !== 'undefined' && document.referrer) {
+      const referrer = document.referrer.toLowerCase();
+      // 如果 referrer 包含国产供应商搜索相关的路径，推断为 domestic
+      if (referrer.includes('domestic') || referrer.includes('国产')) {
+        return 'domestic';
+      }
+    }
+    
+    // 3. 如果 URL 中有 manufacturer 参数但没有 source，可能是从供应商搜索进入
+    // 注意：这里无法直接判断是国产还是进口供应商，需要通过搜索结果来判断
+    // 但为了确保分类树正确显示，如果明确是从"国产供应商搜索"进入，
+    // 应该在进入时设置 source='domestic'
+    // 如果 URL 中没有 source，且无法明确判断，默认使用 'import'
+    
+    // 默认返回 'import'
+    return 'import';
+  }, [searchParams]);
+  
+  // 用于存储推断出的 source（基于搜索结果）
+  const [inferredSourceFromResults, setInferredSourceFromResults] = useState<'import' | 'domestic' | null>(null);
+  
+  // 最终的 source：优先使用 URL 中的 source，但如果搜索结果明确显示是另一种类型，则使用推断的 source
+  const finalSource = useMemo((): 'import' | 'domestic' => {
+    const urlSource = searchParams.get('source') as 'import' | 'domestic' | null;
+    
+    // 如果已经从搜索结果推断出 source，优先使用推断的结果（因为搜索结果更准确）
+    if (inferredSourceFromResults) {
+      console.log('[ComponentSearch] Using inferred source from results:', inferredSourceFromResults);
+      // 如果 URL 中的 source 与推断的不一致，更新 URL
+      if (urlSource !== inferredSourceFromResults) {
+        const newParams = new URLSearchParams(searchParams);
+        newParams.set('source', inferredSourceFromResults);
+        setSearchParams(newParams, { replace: true });
+      }
+      return inferredSourceFromResults;
+    }
+    
+    // 如果 URL 中有 source，使用 URL 中的值
+    if (urlSource === 'import' || urlSource === 'domestic') {
+      console.log('[ComponentSearch] Using source from URL:', urlSource);
+      return urlSource;
+    }
+    
+    // 默认使用推断的 source
+    console.log('[ComponentSearch] Using default source:', source);
+    return source;
+  }, [searchParams, inferredSourceFromResults, source, setSearchParams]);
+  
+  // 当 finalSource 变化时，确保 URL 中的 source 参数与 finalSource 一致
+  useEffect(() => {
+    const urlSource = searchParams.get('source') as 'import' | 'domestic' | null;
+    if (urlSource !== finalSource) {
+      // 如果 URL 中的 source 与 finalSource 不一致，更新 URL
+      const newParams = new URLSearchParams(searchParams);
+      if (finalSource === 'domestic') {
+        newParams.set('source', 'domestic');
+      } else {
+        newParams.set('source', 'import');
+      }
+      setSearchParams(newParams, { replace: true });
+      console.log('[ComponentSearch] Updated URL source parameter to:', finalSource);
+    }
+  }, [finalSource, searchParams, setSearchParams]);
+  
+  const isDomestic = finalSource === 'domestic';
+  
+  /**
+   * 将分类名称转换为 familyPath
+   * @param categoryName 分类名称（中文或英文）
+   * @returns familyPath 数组，如果找不到则返回空数组
+   */
+  const getFamilyPathFromCategory = (categoryName: string): string[] => {
+    if (isDomestic) {
+      return categoryName ? [categoryName] : [];
+    }
+    if (!categoryName) return [];
+    // 直接查找映射
+    if (categoryToFamilyPathMap[categoryName]) {
+      return categoryToFamilyPathMap[categoryName];
+    }
+    // 如果找不到，返回空数组（表示不过滤）
+    return [];
+  };
+  
   const [components, setComponents] = useState<ComponentWithUI[]>([]);
   const [selectedComponents, setSelectedComponents] = useState<string[]>([]);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -484,6 +572,37 @@ const ComponentSearch: React.FC = () => {
       console.log('搜索响应结果(data):', data);
       
       if (data) {
+        // 尝试从搜索结果推断 source（无论 URL 中是否有 source 参数）
+        // 检查返回的数据结构：国产数据通常有 level1/level2/level3 字段
+        const rawList = Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data?.data?.items)
+              ? data.data.items
+              : Array.isArray(data?.components)
+                ? data.components
+                : [];
+        
+        // 如果数据中有 level1/level2/level3 字段，推断为国产
+        if (rawList.length > 0) {
+          const firstItem = rawList[0];
+          console.log('[ComponentSearch] First item from search results:', firstItem);
+          if (firstItem && (firstItem.level1 || firstItem.level2 || firstItem.level3)) {
+            // 推断为国产数据
+            console.log('[ComponentSearch] Inferred as domestic from search results (has level1/level2/level3)');
+            if (inferredSourceFromResults !== 'domestic') {
+              setInferredSourceFromResults('domestic');
+            }
+          } else if (firstItem && (firstItem.family_path || firstItem.part_number)) {
+            // 推断为进口数据（DoEEEt 数据通常有 family_path 或 part_number）
+            console.log('[ComponentSearch] Inferred as import from search results (has family_path/part_number)');
+            if (inferredSourceFromResults !== 'import') {
+              setInferredSourceFromResults('import');
+            }
+          }
+        }
+        
         // 国产结果映射
         if (isDomestic) {
           const rawList = Array.isArray(data?.items)
@@ -1339,8 +1458,9 @@ const ComponentSearch: React.FC = () => {
               styles={{ body: { padding: '12px' } }}
             >
               <CategoryFilter
+                key={`category-filter-${finalSource}`}
                 selectedCategory={selectedCategory}
-                source={source as 'import' | 'domestic'}
+                source={finalSource as 'import' | 'domestic'}
                 lockTopCategory={
                   // 将当前已选分类的顶层（父级）作为锁定大类
                   selectedCategory.length > 0 ? selectedCategory[selectedCategory.length - 1] : undefined

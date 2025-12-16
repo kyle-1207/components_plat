@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, Tabs, Space, Typography, Tag, List, message } from 'antd';
 import { FolderOutlined, AppstoreOutlined } from '@ant-design/icons';
 import httpClient from '@/utils/httpClient';
@@ -53,14 +53,64 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
   lockTopCategory
 }) => {
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
-  const [selectedTopCategory, setSelectedTopCategory] = useState<string>(lockTopCategory || TOP_CATEGORIES[0]);
   const [subCategories, setSubCategories] = useState<any>({});
   const [loading, setLoading] = useState(false);
 
+  // 确保 source 有有效的默认值或兜底逻辑
+  const effectiveSource: 'import' | 'domestic' = (source === 'domestic' ? 'domestic' : 'import');
+  
+  // 根据 source 获取顶层分类列表（使用 useMemo 缓存）
+  const topCategories = useMemo((): string[] => {
+    if (effectiveSource === 'domestic') {
+      // 国产分类：从 subCategories 中提取 level1（顶层分类）
+      const topCats = Object.keys(subCategories);
+      if (topCats.length > 0) {
+        return topCats;
+      }
+      // 如果 subCategories 为空，尝试从 categoryTree 中提取
+      if (categoryTree.length > 0) {
+        return categoryTree.map(node => node.value || node.label);
+      }
+      // 默认返回国产分类的顶层分类（从 classification.json 提取的 level1）
+      return [
+        '数字单片集成电路',
+        '模拟单片集成电路',
+        '混合集成电路',
+        '半导体分立器件',
+        '固态微波器件与电路',
+        '真空电子器件',
+        '光电子器件',
+        '机电组件',
+        '电能源',
+        '通用与特种元件',
+        '微系统'
+      ];
+    } else {
+      // 进口分类：使用硬编码的 TOP_CATEGORIES
+      return TOP_CATEGORIES;
+    }
+  }, [effectiveSource, subCategories, categoryTree]);
+  
+  const [selectedTopCategory, setSelectedTopCategory] = useState<string>(
+    lockTopCategory || (topCategories.length > 0 ? topCategories[0] : '')
+  );
+
   // 加载分类树，source 变化时重新加载
   useEffect(() => {
+    console.log('[CategoryFilter] source changed:', effectiveSource);
     loadCategoryTree();
-  }, [source]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveSource]);
+  
+  // 当 topCategories 更新时，确保 selectedTopCategory 在有效的分类列表中
+  useEffect(() => {
+    if (topCategories.length > 0 && !lockTopCategory) {
+      // 如果当前选中的分类不在列表中，或者列表为空，重置为第一个分类
+      if (!topCategories.includes(selectedTopCategory) || selectedTopCategory === '') {
+        setSelectedTopCategory(topCategories[0]);
+      }
+    }
+  }, [topCategories, selectedTopCategory, lockTopCategory]);
 
   // 当锁定顶层分类变化时，同步激活的顶层分类
   useEffect(() => {
@@ -73,8 +123,8 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
   useEffect(() => {
     if (!selectedCategory || selectedCategory.length === 0) {
       // 清空分类时，重置到第一个顶层分类（如果没有锁定）
-      if (!lockTopCategory) {
-        setSelectedTopCategory(TOP_CATEGORIES[0]);
+      if (!lockTopCategory && topCategories.length > 0) {
+        setSelectedTopCategory(topCategories[0]);
       }
     } else if (selectedCategory.length > 0) {
       // 如果有选中的分类，将 Tab 切换到对应的顶层分类
@@ -83,23 +133,41 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
         setSelectedTopCategory(topCategory);
       }
     }
-  }, [selectedCategory, lockTopCategory]);
+  }, [selectedCategory, lockTopCategory, topCategories]);
 
   /**
-   * 从后端加载 meta.json 数据并构建分类树
+   * 从后端加载分类树数据
+   * 当 source 为 'domestic' 时加载国产分类树(classification.json)，
+   * 否则加载进口分类树(DoEEEt)
    */
   const loadCategoryTree = async () => {
     setLoading(true);
     try {
-      const endpoint = source === 'domestic' ? '/api/domestic/categories/tree' : '/api/doeeet/categories/tree';
+      // 根据 source 选择对应的接口
+      const endpoint = effectiveSource === 'domestic' 
+        ? '/api/domestic/categories/tree' 
+        : '/api/doeeet/categories/tree';
+      
+      console.log('[CategoryFilter] Loading category tree from:', endpoint, 'source:', effectiveSource);
+      
       const data = await httpClient.get<{ tree: CategoryNode[]; subCategories: any }>(endpoint, {
         timeoutMs: 15000,
       });
       const fullTree = (data?.tree || []) as CategoryNode[];
+      console.log('[CategoryFilter] Loaded category tree:', fullTree.length, 'categories');
+      console.log('[CategoryFilter] SubCategories:', data?.subCategories);
       setCategoryTree(fullTree);
       setSubCategories(data?.subCategories || {});
+      
+      // 如果当前选中的顶层分类不在新的分类列表中，重置为第一个分类
+      if (effectiveSource === 'domestic' && !lockTopCategory) {
+        const newTopCats = Object.keys(data?.subCategories || {});
+        if (newTopCats.length > 0 && !newTopCats.includes(selectedTopCategory)) {
+          setSelectedTopCategory(newTopCats[0]);
+        }
+      }
     } catch (error: any) {
-      console.error('加载分类树失败:', error);
+      console.error('[CategoryFilter] 加载分类树失败:', error);
       message.error(error?.message || '分类加载失败，请检查网络或稍后重试');
       setCategoryTree([]);
       setSubCategories({});
@@ -200,7 +268,7 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
           onChange={handleTopCategoryChange}
           type="card"
           size="small"
-          items={(lockTopCategory ? [lockTopCategory] : TOP_CATEGORIES).map(category => ({
+          items={(lockTopCategory ? [lockTopCategory] : topCategories).map(category => ({
             key: category,
             label: <span style={{ fontSize: '12px' }}>{category}</span>,
             children: renderSubCategoryTree(category),

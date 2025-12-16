@@ -1,0 +1,177 @@
+version: '3.8'
+
+# 生产环境 Docker Compose 配置
+# 使用方法: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  # MongoDB 数据库
+  mongodb:
+    image: mongo:5.0
+    container_name: business_plat_mongodb
+    restart: always  # 生产环境使用 always
+    ports:
+      - "27017:27017"
+    volumes:
+      # 数据持久化 - 使用命名卷
+      - mongodb_data:/data/db
+      # 日志目录
+      - mongodb_logs:/var/log/mongodb
+      # 如果需要恢复备份，挂载备份目录
+      - ./mongodb_backup:/backup:ro  # 只读挂载
+    environment:
+      - MONGO_INITDB_DATABASE=business_plat
+    # 生产环境优化配置
+    command: >
+      mongod
+      --wiredTigerCacheSizeGB=2
+      --logpath=/var/log/mongodb/mongod.log
+      --logappend
+      --bind_ip_all
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: business_plat_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    # 生产环境配置：启用持久化和密码（可选）
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # 后端 API 服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+    container_name: business_plat_backend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      # 生产环境变量
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongodb:27017/business_plat
+      - MONGODB_DOEET_URI=mongodb://mongodb:27017/doeet
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - LOG_LEVEL=info
+      - CORS_ORIGIN=http://localhost:3000
+    volumes:
+      # 日志目录 - 持久化
+      - ./backend/logs:/app/logs
+      # 上传文件目录 - 持久化
+      - ./backend/uploads:/app/uploads
+      # 配置文件（如果需要）
+      - ./backend/.env:/app/.env:ro
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+        - VITE_API_URL=http://localhost:3001
+    container_name: business_plat_frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    # 前端不需要环境变量（构建时已包含）
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+volumes:
+  mongodb_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data/mongodb
+      o: bind
+  mongodb_logs:
+    driver: local
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./data/redis
+      o: bind
+
+networks:
+  default:
+    name: business_plat_network
+    driver: bridge
+
