@@ -235,6 +235,8 @@ New-Item -ItemType Directory -Force -Path $migrationPackage
 Copy-Item "business_plat_images.7z" -Destination $migrationPackage\
 Copy-Item "docker-compose.prod.yml" -Destination $migrationPackage\
 Copy-Item "mongodb_backup" -Destination $migrationPackage\ -Recurse -Force
+# 如果有 .env.example 可一并携带（没有则忽略）
+Copy-Item ".env.example" "$migrationPackage\.env.example" -ErrorAction SilentlyContinue
 
 # 创建 .env 示例文件（如果需要自定义配置）
 @"
@@ -260,7 +262,8 @@ Docker 生产环境迁移包
 1. business_plat_images.7z - Docker 镜像文件（压缩）
 2. docker-compose.prod.yml - 生产环境配置
 3. mongodb_backup/ - MongoDB 数据库备份
-4. .env.example - 环境变量示例
+4. .env.example - 环境变量示例（如有）
+5. README.txt - 本地迁移说明（可选）
 
 迁移步骤请参考：DOCKER_MIGRATION_GUIDE.md
 "@ | Out-File -FilePath "$migrationPackage\README.txt" -Encoding UTF8

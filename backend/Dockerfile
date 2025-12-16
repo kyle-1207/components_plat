@@ -1,26 +1,4 @@
-# 后端 Dockerfile
-# 多阶段构建，优化镜像大小
-
-# 阶段1：构建阶段
-FROM node:16-alpine AS builder
-
-WORKDIR /app
-
-# 复制 package 文件
-COPY package*.json ./
-COPY tsconfig.json ./
-
-# 安装所有依赖（包括 devDependencies，用于构建）
-RUN npm ci && npm cache clean --force
-
-# 复制源代码
-COPY src ./src
-COPY config ./config
-
-# 编译 TypeScript
-RUN npm run build
-
-# 阶段2：运行阶段
+# 后端 Dockerfile（使用已有 dist，不在镜像内运行 TypeScript 编译）
 FROM node:16-alpine
 
 WORKDIR /app
@@ -34,10 +12,10 @@ COPY package*.json ./
 # 只安装生产依赖
 RUN npm ci --only=production && npm cache clean --force
 
-# 从构建阶段复制编译后的文件
-COPY --from=builder /app/dist ./dist
+# 复制已经编译好的 dist（在开发环境中通过 tsc 生成，或仓库中已有）
+COPY dist ./dist
 
-# 复制必要的配置文件
+# 复制必要的配置和脚本文件
 COPY config ./config
 COPY scripts ./scripts
 
@@ -53,4 +31,3 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
 
 # 启动应用
 CMD ["node", "dist/index.js"]
-

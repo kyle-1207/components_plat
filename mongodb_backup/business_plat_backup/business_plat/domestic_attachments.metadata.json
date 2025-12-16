@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"},{"v":{"$numberInt":"2"},"key":{"material_code":{"$numberInt":"1"}},"name":"material_code_1","background":true,"unique":true}],"uuid":"fa50015bfb7f47adadc4803669837b7e","collectionName":"domestic_attachments","type":"collection"}
